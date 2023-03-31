@@ -1,7 +1,7 @@
 # Accounting LineBot - Line記帳機器人
 
-> 這是一個用Flask、串接LineBot API (Webhook)、連結Google Sheet並部署在 GCP 的記帳機器人
-> 透過LineBot將帳目記錄在Google試算表, 並將函式部署雲端, 使用Line即可隨時輕鬆記帳
+>* 這是一個用Flask、串接LineBot API (Webhook)、連結Google Sheet並部署在 GCP 的記帳機器人
+>* 透過LineBot將帳目記錄在Google試算表, 並將函式部署雲端, 使用Line即可隨時輕鬆記帳
 
 ## Architecture Diagram 架構圖
 
