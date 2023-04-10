@@ -8,7 +8,7 @@
 ![linebot architecture diagram](https://github.com/chchchuang/linebot/blob/main/linebot%20architecture%20diagram.png)
 
 ## Prerequisites 使用環境
-* 後端: Python Flask
+* 後端: [Python Flask](https://flask.palletsprojects.com/en/2.2.x/)
 * LineBot: [Line Developers](https://developers.line.biz/zh-hant/) Messaging API
 * 雲端部署: [Google Cloud Platform](https://console.cloud.google.com/?hl=zh-tw)(GCP) Cloud Function
 * 資料庫: [Google Sheet](https://docs.google.com/spreadsheets/create?hl=zh-TW)
