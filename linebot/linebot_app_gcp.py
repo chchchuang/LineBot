@@ -28,7 +28,7 @@ def linebot(request):
         # get request body as text
         body = request.get_data(as_text=True)
         json_data = json.loads(body)
-        handler.handle(body, signature)
+        handler.handle(body, signature) # 綁定訊息回傳的相關資訊
         msg = json_data["events"][0]["message"]["text"]
         tk = json_data["events"][0]["replyToken"]
         print(msg, tk)
@@ -37,24 +37,56 @@ def linebot(request):
             dflst = wks.get_all_values(include_tailing_empty_rows=False, include_tailing_empty=False)
             content = ""
             for lst in dflst:
-                content += "{:3s}  {:3s}  {:3s}  {:3s}\n".format(lst[0], lst[1], lst[2], lst[3])
+                content += "{:3s}  {:3s}  {:3s}  {:3s}  {:3s}\n".format(lst[0], lst[1], lst[2], lst[3], lst[4])
             line_bot_api.reply_message(tk, TextSendMessage(text=content))
 
         def write(wks, text):
             dt_utc = datetime.utcnow().replace(tzinfo=timezone.utc)
             dt_local = dt_utc.astimezone(timezone(timedelta(hours=8))) # 轉換時區 -> 東八區
-            content = [dt_local.strftime("%Y-%m-%d %H:%M:%S")] + text
+            content = []
+            contentt = "記錄成功\n"
+            for val in text.split("/"):
+                val = val.strip()
+                lst = val.split(" ")
+                if len(lst) != 4:
+                    log = f"記錄失敗,格式:\n" \
+                          f"write 名字1 品項1 分類1 金額1(記得空格)\n" \
+                          f"多筆之間用 / 隔開，write 只要寫一次" \
+                          f"位置:\n {lst}"
+                    line_bot_api.reply_message(tk, TextSendMessage(text=log))
+                else:
+                    per_line = [dt_local.strftime("%Y-%m-%d %H:%M:%S")] + lst
+                    content.append(per_line)
+                    contentt += " ".join(per_line) + "\n"
+
             wks.append_table(values=content)
-            contentt = "記錄成功\n" + " ".join(content)
             line_bot_api.reply_message(tk, TextSendMessage(text=contentt))
 
-        def ssum(wks, name):
+        def ssum(wks, target, kind="sum"):
             dflst = wks.get_all_values(include_tailing_empty_rows=False, include_tailing_empty=False)
+            if kind == "sum":
+                idx = 1
+            elif kind == "type":
+                idx = 3
+            else:
+                line_bot_api.reply_message(tk, TextSendMessage(text=f"ssum function error, 通知皮兒!"))
+                return
             total = 0
             for lst in dflst:
-                if lst[1] == name:
-                    total += float(lst[3])
-            content = f"{name}已花費{total}元"
+                if lst[idx] == target:
+                    total += float(lst[4])
+            content = f"{target}已花費{total}元"
+            line_bot_api.reply_message(tk, TextSendMessage(text=content))
+
+        def get_type(wks):
+            dflst = wks.get_all_values(include_tailing_empty_rows=False, include_tailing_empty=False)
+            s = set()
+            for i, lst in enumerate(dflst):
+                if i == 0:
+                    continue
+                s.add(lst[3])
+            s = list(s)
+            content = f"共有以下 {len(s)} 種分類：\n{s}"
             line_bot_api.reply_message(tk, TextSendMessage(text=content))
         
         def delete(wks):
@@ -92,20 +124,29 @@ def linebot(request):
                 print("輸出完整表單", GSpreadSheet)
             # write
             if "write" in msg:
-                lst = msg.split(' ')
-                if len(lst) != 4:
-                    line_bot_api.reply_message(tk, TextSendMessage(text="記錄失敗,格式:\nwrite 名字 品項 金額(記得空格)"))
-                else:
-                    write(wks, lst[1:])
-                    print("新增一列資料到試算表", GSpreadSheet)
+                text = " ".join(msg.split(" ")[1:])
+                write(wks, text)
+                print("新增資料到試算表", GSpreadSheet)
             # sum
             if "sum" in msg:
                 lst = msg.split(' ')
                 if len(lst) != 2:
                     line_bot_api.reply_message(tk, TextSendMessage(text="查詢失敗,格式:\nsum 名字(記得空格)"))
                 else:
-                    ssum(wks, lst[-1])
+                    ssum(wks, lst[-1], "sum")
                     print("計算總和", GSpreadSheet)
+            # type
+            if "type" in msg:
+                msg = msg.strip()
+                lst = msg.split(' ')
+                if len(lst) == 1:
+                    get_type(wks)
+                    print("提供分類項目", GSpreadSheet)
+                elif len(lst) != 2:
+                    line_bot_api.reply_message(tk, TextSendMessage(text="查詢失敗,格式:\ntype 或是 type 種類(記得空格)"))
+                else:
+                    ssum(wks, lst[-1], "type")
+                    print("計算分類總和", GSpreadSheet)
             # delete
             if "delete" in msg:
                 delete(wks)
@@ -113,12 +154,21 @@ def linebot(request):
             # clear_all
             if "clear" in msg:
                 wks.clear()
-                wks.update_values("A1", [["時間", "人名", "品項", "費用"]]) # 橫的
+                wks.update_values("A1", [["時間", "人名", "品項", "分類", "費用"]]) # 橫的
                 line_bot_api.reply_message(tk, TextSendMessage(text="全部清除成功"))
                 print("清除資料", GSpreadSheet)
             # 指令
             if "指令" in msg:
-                content = "read: 讀取資料\ndisplay: 完整表單\nwrite 名字 品項 金額(記得空格): 記帳\nsum 名字(記得空格): 加總\ndelete: 刪除最後一筆記錄\nclear: 清除全部項目"
+                content = "read: 讀取資料\n" \
+                          "display: 完整表單\n" \
+                          "write 名字1 品項1 分類1 金額1(記得空格): 記帳\n" \
+                          "write 名字1 品項1 分類1 金額1/名字2 品項2 分類2 金額2\n" \
+                          "(記得空格，多筆以此類推)" \
+                          "sum 名字(記得空格): 加總\n" \
+                          "delete: 刪除最後一筆記錄\n" \
+                          "clear: 清除全部項目\n" \
+                          "type: 獲得分類項目\n" \
+                          "type 分類(記得空格): 獲得分類金額加總"
                 line_bot_api.reply_message(tk, TextSendMessage(text=content))
                 print("查詢指令")
     except Exception as ex:
