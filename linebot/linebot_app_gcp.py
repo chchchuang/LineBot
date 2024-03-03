@@ -1,4 +1,4 @@
-#GCP 測試OK
+# GCP 測試OK
 import sys, os, json
 from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
@@ -7,6 +7,7 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 import pygsheets
 from datetime import datetime, timezone, timedelta
 from config import Config
+
 
 def linebot(request):
     """Responds to any HTTP request.
@@ -28,7 +29,7 @@ def linebot(request):
         # get request body as text
         body = request.get_data(as_text=True)
         json_data = json.loads(body)
-        handler.handle(body, signature) # 綁定訊息回傳的相關資訊
+        handler.handle(body, signature)  # 綁定訊息回傳的相關資訊
         msg = json_data["events"][0]["message"]["text"]
         tk = json_data["events"][0]["replyToken"]
         print(msg, tk)
@@ -57,16 +58,17 @@ def linebot(request):
                     line_bot_api.reply_message(tk, TextSendMessage(text=log))
                 else:
                     per_line = [dt_local.strftime("%Y-%m-%d %H:%M:%S")] + [name] + lst
-                    _total_this_time += lst[-1]
+                    _total_this_time += float(lst[-1])
                     content.append(per_line)
                     contentt += " ".join(per_line) + "\n"
 
             wks.append_table(values=content)
-            _sum = wks.cell("G1")
+            _sum = float(wks.cell("G1").value)
             _sum += _total_this_time
             wks.update_value("G1", _sum)
             if _sum >= 6000:
-                line_bot_api.reply_message(tk, [TextSendMessage(text=contentt), TextSendMessage(text=f"目前已消費 {_sum}元已超過預期")])
+                line_bot_api.reply_message(tk, [TextSendMessage(text=contentt),
+                                                TextSendMessage(text=f"目前已消費 {_sum}元已超過預期")])
             else:
                 line_bot_api.reply_message(tk, TextSendMessage(text=contentt))
 
@@ -96,7 +98,7 @@ def linebot(request):
             s = list(s)
             content = f"共有以下 {len(s)} 種分類：\n{s}"
             line_bot_api.reply_message(tk, TextSendMessage(text=content))
-        
+
         def delete(wks):
             dflst = wks.get_all_values(include_tailing_empty_rows=False, include_tailing_empty=False)
             row_to_del = len(dflst)
@@ -106,12 +108,12 @@ def linebot(request):
                 content = "已刪除\n" + " ".join(dflst[-1])
                 wks.delete_rows(row_to_del)
             line_bot_api.reply_message(tk, TextSendMessage(text=content))
-    
+
         if msg != "":
-            GDriveJSON = config.GDRIVE_JSON # 服務帳戶金鑰檔名
-            GSpreadSheet = config.GSPREADSHEET # google sheet檔名
-            GWorkSheet = config.GWORKSHEET # google sheet書籤名
-            
+            GDriveJSON = config.GDRIVE_JSON  # 服務帳戶金鑰檔名
+            GSpreadSheet = config.GSPREADSHEET  # google sheet檔名
+            GWorkSheet = config.GWORKSHEET  # google sheet書籤名
+
             try:
                 gc = pygsheets.authorize(service_file=GDriveJSON)
                 wks = gc.open(GSpreadSheet).worksheet_by_title(GWorkSheet)
@@ -126,7 +128,7 @@ def linebot(request):
             # display
             if "display" in msg:
                 line_bot_api.reply_message(
-                    tk, 
+                    tk,
                     [TextSendMessage(text="完整表單"), TextSendMessage(text=config.GOOGLE_SHEET_URL)]
                 )
                 print("輸出完整表單", GSpreadSheet)
@@ -153,7 +155,8 @@ def linebot(request):
                     get_type(wks)
                     print("提供分類項目", GSpreadSheet)
                 elif len(lst) != 2:
-                    line_bot_api.reply_message(tk, TextSendMessage(text="查詢失敗,格式:\ntype 或是 type 種類(記得空格)"))
+                    line_bot_api.reply_message(tk,
+                                               TextSendMessage(text="查詢失敗,格式:\ntype 或是 type 種類(記得空格)"))
                 else:
                     ssum(wks, lst[-1], "type")
                     print("計算分類總和", GSpreadSheet)
@@ -185,5 +188,5 @@ def linebot(request):
         print(request.args)
         print(ex)
         sys.exit(1)
-        
+
     return "OK"
