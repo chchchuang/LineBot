@@ -40,27 +40,35 @@ def linebot(request):
                 content += "{:3s}  {:3s}  {:3s}  {:3s}  {:3s}\n".format(lst[0], lst[1], lst[2], lst[3], lst[4])
             line_bot_api.reply_message(tk, TextSendMessage(text=content))
 
-        def write(wks, text):
+        def write(wks, name, text):
             dt_utc = datetime.utcnow().replace(tzinfo=timezone.utc)
-            dt_local = dt_utc.astimezone(timezone(timedelta(hours=8))) # 轉換時區 -> 東八區
+            dt_local = dt_utc.astimezone(timezone(timedelta(hours=8)))  # 轉換時區 -> 東八區
             content = []
             contentt = "記錄成功\n"
+            _total_this_time = 0
             for val in text.split("/"):
                 val = val.strip()
                 lst = val.split(" ")
-                if len(lst) != 4:
+                if len(lst) != 3:
                     log = f"記錄失敗,格式:\n" \
-                          f"write 名字1 品項1 分類1 金額1(記得空格)\n" \
-                          f"多筆之間用 / 隔開，write 只要寫一次\n" \
+                          f"write 名字 品項1 分類1 金額1/品項2 分類2 金額2(記得空格)\n" \
+                          f"多筆之間用 / 隔開，write 跟名字只要寫一次\n" \
                           f"錯誤位置:\n {lst}"
                     line_bot_api.reply_message(tk, TextSendMessage(text=log))
                 else:
-                    per_line = [dt_local.strftime("%Y-%m-%d %H:%M:%S")] + lst
+                    per_line = [dt_local.strftime("%Y-%m-%d %H:%M:%S")] + [name] + lst
+                    _total_this_time += lst[-1]
                     content.append(per_line)
                     contentt += " ".join(per_line) + "\n"
 
             wks.append_table(values=content)
-            line_bot_api.reply_message(tk, TextSendMessage(text=contentt))
+            _sum = wks.cell("G1")
+            _sum += _total_this_time
+            wks.update_value("G1", _sum)
+            if _sum >= 6000:
+                line_bot_api.reply_message(tk, [TextSendMessage(text=contentt), TextSendMessage(text=f"目前已消費 {_sum}元已超過預期")])
+            else:
+                line_bot_api.reply_message(tk, TextSendMessage(text=contentt))
 
         def ssum(wks, target, kind="sum"):
             dflst = wks.get_all_values(include_tailing_empty_rows=False, include_tailing_empty=False)
@@ -124,8 +132,10 @@ def linebot(request):
                 print("輸出完整表單", GSpreadSheet)
             # write
             if "write" in msg:
-                text = " ".join(msg.split(" ")[1:])
-                write(wks, text)
+                msg_list = msg.split(" ")
+                name = msg_list[1]
+                text = " ".join(msg.split(" ")[2:])
+                write(wks, name, text)
                 print("新增資料到試算表", GSpreadSheet)
             # sum
             if "sum" in msg:
@@ -154,15 +164,15 @@ def linebot(request):
             # clear_all
             if "clear" in msg:
                 wks.clear()
-                wks.update_values("A1", [["時間", "人名", "品項", "分類", "費用"]]) # 橫的
+                wks.update_values("A1", [["時間", "人名", "品項", "分類", "費用", "總和", 0]])  # 橫的
                 line_bot_api.reply_message(tk, TextSendMessage(text="全部清除成功"))
                 print("清除資料", GSpreadSheet)
             # 指令
             if "指令" in msg:
                 content = "read: 讀取資料\n" \
                           "display: 完整表單\n" \
-                          "write 名字1 品項1 分類1 金額1(記得空格): 記帳\n" \
-                          "write 名字1 品項1 分類1 金額1/名字2 品項2 分類2 金額2\n" \
+                          "write 名字 品項 分類 金額(記得空格): 記帳\n" \
+                          "write 名字 品項1 分類1 金額1/品項2 分類2 金額2\n" \
                           "(記得空格，多筆以此類推)\n" \
                           "sum 名字(記得空格): 加總\n" \
                           "delete: 刪除最後一筆記錄\n" \
