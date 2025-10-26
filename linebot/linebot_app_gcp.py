@@ -1,14 +1,19 @@
 import json
+import os
 import sys
 from datetime import datetime, timedelta, timezone
 
 import pygsheets
 from config import Config
-from flask import request
+from flask import Flask, request
 from linebot.models import TextSendMessage
 
 from linebot import LineBotApi, WebhookHandler
 
+app = Flask(__name__)
+@app.route("/", methods=["POST"])
+def callback():
+    return linebot(request)
 
 def linebot(request):
     """Responds to any HTTP request.
@@ -342,3 +347,8 @@ class BotOperation:
             "type 分類(記得空格): 獲得分類金額加總"
         )
         self.api.reply_message(self.tk, TextSendMessage(text=content))
+
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
