@@ -4,6 +4,9 @@ _old/
 linebot_app/config.py
 *.json
 __pycache__/
+.env
+.env.*
+!.env.example
 
 # Testing
 .pytest_cache/
