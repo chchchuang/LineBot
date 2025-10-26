@@ -1,7 +1,7 @@
 .DS_Store
 _old/
 .venv/
-linebot_app/config.py
+linebot_app/config_new.py
 *.json
 __pycache__/
 
