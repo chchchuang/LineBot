@@ -92,7 +92,17 @@ def linebot(request):
                         bo.ssum(lst[-1], "type")
                         print("計算分類總和")
                 case "delete":
-                    bo.delete()
+                    lst = msg.split(' ')
+                    if len(lst) == 1:
+                        bo.delete()  # 沒有參數，刪除最後一筆
+                    elif len(lst) == 2:
+                        try:
+                            index = int(lst[1])
+                            bo.delete(index)
+                        except ValueError:
+                            line_bot_api.reply_message(tk, TextSendMessage(text="索引必須是數字\n格式：delete 或 delete 索引"))
+                    else:
+                        line_bot_api.reply_message(tk, TextSendMessage(text="格式錯誤\n格式：delete 或 delete 索引"))
                     print("清除項目")
                 case "clear":
                     bo.clear()
@@ -136,10 +146,10 @@ class BotOperation:
     def read(self):
         all_values = self._get_all_values()
         sub_content = [
-            f"{row[self.COL_TIME]:<3s}  {row[self.COL_NAME]:<3s}  "
+            f"{i}  {row[self.COL_TIME]:<3s}  {row[self.COL_NAME]:<3s}  "
             f"{row[self.COL_ITEM]:<3s}  {row[self.COL_TYPE]:<3s}  "
             f"{row[self.COL_AMOUNT]:<3s}"
-            for row in all_values
+            for i, row in enumerate(all_values)
         ]
         content = "\n".join(sub_content)
         self.api.reply_message(self.tk, TextSendMessage(text=content))
@@ -253,21 +263,60 @@ class BotOperation:
         content = f"共有以下 {len(types_list)} 種分類：\n{types_list}"
         self.api.reply_message(self.tk, TextSendMessage(text=content))
 
-    def delete(self):
+    def delete(self, index=None):
         all_values = self._get_all_values()
-        row_to_del = len(all_values)
         
-        if row_to_del <= 1:
+        if len(all_values) <= 1:
             content = "表單為空"
-        else:
+            self.api.reply_message(self.tk, TextSendMessage(text=content))
+            return
+        
+        # 如果沒有指定 index，刪除最後一筆
+        if index is None:
+            row_num = len(all_values)
             deleted_row = " ".join(all_values[-1])
-            self.wks.delete_rows(row_to_del)
-            content = f"已刪除\n{deleted_row}"
-
+            self.wks.delete_rows(row_num)
+            
             # 更新總和
             current_total = float(self.wks.cell("G1").value or 0)
             new_total = current_total - float(all_values[-1][self.COL_AMOUNT])
             self.wks.update_value("G1", new_total)
+            
+            content = f"已刪除最後一筆\n{deleted_row}"
+        else:
+            try:
+                # index 對應 all_values 的索引
+                # 用戶輸入的 index 就是 read 顯示的索引
+                idx = int(index)
+                
+                if idx < 0 or idx >= len(all_values):
+                    content = f"索引錯誤，請輸入 0 到 {len(all_values)-1} 之間的數字"
+                    self.api.reply_message(self.tk, TextSendMessage(text=content))
+                    return
+                
+                # 不允許刪除標題列（index 0）
+                if idx == 0:
+                    content = "無法刪除標題列"
+                    self.api.reply_message(self.tk, TextSendMessage(text=content))
+                    return
+                
+                deleted_row = " ".join(all_values[idx])
+                # pygsheets 使用 1-based row number
+                self.wks.delete_rows(idx + 1)
+                
+                # 更新總和（idx >= 1 是數據行）
+                if idx >= 1 and len(all_values[idx]) > self.COL_AMOUNT:
+                    try:
+                        amount = float(all_values[idx][self.COL_AMOUNT])
+                        current_total = float(self.wks.cell("G1").value or 0)
+                        new_total = current_total - amount
+                        self.wks.update_value("G1", new_total)
+                    except (ValueError, IndexError):
+                        pass
+                
+                content = f"已刪除第 #{idx} 筆\n{deleted_row}"
+            except ValueError:
+                content = "索引必須是數字"
         
         self.api.reply_message(self.tk, TextSendMessage(text=content))
 
@@ -334,13 +383,14 @@ class BotOperation:
 
     def method(self):
         content = (
-            "read: 讀取資料\n"
+            "read: 讀取資料（顯示索引）\n"
             "display: 完整表單\n"
             "write 名字 品項 分類 金額(記得空格): 記帳\n"
             "write 名字 品項1 分類1 金額1/品項2 分類2 金額2\n"
             "(記得空格，多筆以此類推)\n"
             "sum 名字(記得空格): 加總\n"
             "delete: 刪除最後一筆記錄\n"
+            "delete 索引: 刪除指定索引的記錄\n"
             "clear: 清除全部項目（會自動備份）\n"
             "revert: 還原備份的資料\n"
             "type: 獲得分類項目\n"
