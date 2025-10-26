@@ -12,4 +12,4 @@ class Config: # 必須是全大寫
     GOOGLE_SHEET_URL = os.getenv("GOOGLE_SHEET_URL")
     GSPREADSHEET = os.getenv("GSPREADSHEET", "linebot_expense")
     GWORKSHEET = os.getenv("GWORKSHEET", "expense")
-    THRESHOLD_AMOUNT = int(os.getenv("THRESHOLD_AMOUNT", "6000")) 
+    THRESHOLD_AMOUNT = int(os.getenv("THRESHOLD_AMOUNT", "6000"))
