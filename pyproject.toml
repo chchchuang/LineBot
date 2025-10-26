@@ -20,3 +20,6 @@ dev = [
     "pytest-cov>=4.0.0",
     "mock>=5.0.0",
 ]
+
+[tool.hatchling.build.targets.wheel]
+packages = ["linebot_app"]
