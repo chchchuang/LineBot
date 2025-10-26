@@ -12,3 +12,5 @@ __pycache__/
 dist/
 build/
 _test_guide/
+.coverage
+coverage.xml
