@@ -4,11 +4,11 @@ import sys
 from datetime import datetime, timedelta, timezone
 
 import pygsheets
-from config import Config
 from flask import Flask, request
+from linebot import LineBotApi, WebhookHandler
 from linebot.models import TextSendMessage
 
-from linebot import LineBotApi, WebhookHandler
+from linebot_app.config import Config
 
 app = Flask(__name__)
 @app.route("/", methods=["POST"])
@@ -53,78 +53,14 @@ def linebot(request):
                 sys.exit(1)
 
             bo = BotOperation(wks, line_bot_api, msg, tk, config)
-
             try:
                 op = msg.lstrip().split(" ", 1)[0]
+                bo.execute_command(op)
             except KeyError:
                 line_bot_api.reply_message(tk, TextSendMessage(text="不支援的指令"))
             except Exception as ex:
                 print(ex)
                 line_bot_api.reply_message(tk, TextSendMessage(text="指令執行失敗"))
-            
-            match op:
-                case "read":
-                    bo.read()
-                    print("讀取資料成功")
-                case "display":
-                    bo.display(config.GOOGLE_SHEET_URL)
-                    print("輸出完整表單")
-                case "write":
-                    bo.write()
-                    print("新增資料到試算表")
-                case "sum":
-                    lst = msg.split(' ')
-                    if len(lst) != 2:
-                        line_bot_api.reply_message(tk, TextSendMessage(text="查詢失敗,格式:\nsum 名字(記得空格)"))
-                    else:
-                        bo.ssum(lst[-1], "sum")
-                        print("計算總和")
-                case "type":
-                    msg = msg.strip()
-                    lst = msg.split(' ')
-                    if len(lst) == 1:
-                        bo.get_type()
-                        print("提供分類項目")
-                    elif len(lst) != 2:
-                        line_bot_api.reply_message(tk,
-                                                TextSendMessage(text="查詢失敗,格式:\ntype 或是 type 種類(記得空格)"))
-                    else:
-                        bo.ssum(lst[-1], "type")
-                        print("計算分類總和")
-                case "delete":
-                    lst = msg.split(' ')
-                    if len(lst) == 1:
-                        bo.delete()  # 沒有參數，刪除最後一筆
-                    elif len(lst) == 2:
-                        try:
-                            index = int(lst[1])
-                            bo.delete(index)
-                        except ValueError:
-                            line_bot_api.reply_message(tk, TextSendMessage(text="索引必須是數字\n格式：delete 或 delete 索引"))
-                    else:
-                        line_bot_api.reply_message(tk, TextSendMessage(text="格式錯誤\n格式：delete 或 delete 索引"))
-                    print("清除項目")
-                case "clear":
-                    bo.clear()
-                    print("清除資料")
-                case "revert":
-                    bo.revert()
-                    print("還原備份資料")
-                case "update":
-                    lst = msg.split(' ', 2)
-                    if len(lst) < 3:
-                        line_bot_api.reply_message(tk, TextSendMessage(text="格式錯誤\n格式：update 索引 時間 名字 品項 分類 金額\n例如：update 2 2024-01-01 12:00 小美 午餐 餐飲 100"))
-                    else:
-                        try:
-                            idx = int(lst[1])
-                            data_str = lst[2]
-                            bo.update(idx, data_str)
-                        except ValueError:
-                            line_bot_api.reply_message(tk, TextSendMessage(text="索引必須是數字"))
-                    print("更新資料")
-                case "指令":
-                    bo.method()
-                    print("查詢指令")
     except Exception as ex:
         print(request.args)
         print(ex)
@@ -503,6 +439,73 @@ class BotOperation:
             "type 分類(記得空格): 獲得分類金額加總"
         )
         self.api.reply_message(self.tk, TextSendMessage(text=content))
+
+    def execute_command(self, op):
+        """執行對應的指令"""
+        match op:
+            case "read":
+                self.read()
+                print("讀取資料成功")
+            case "display":
+                self.display(self.config.GOOGLE_SHEET_URL)
+                print("輸出完整表單")
+            case "write":
+                self.write()
+                print("新增資料到試算表")
+            case "sum":
+                lst = self.msg.split(' ')
+                if len(lst) != 2:
+                    self.api.reply_message(self.tk, TextSendMessage(text="查詢失敗,格式:\nsum 名字(記得空格)"))
+                else:
+                    self.ssum(lst[-1], "sum")
+                print("計算總和")
+            case "type":
+                msg = self.msg.strip()
+                lst = msg.split(' ')
+                if len(lst) == 1:
+                    self.get_type()
+                    print("提供分類項目")
+                elif len(lst) != 2:
+                    self.api.reply_message(self.tk, TextSendMessage(text="查詢失敗,格式:\ntype 或是 type 種類(記得空格)"))
+                else:
+                    self.ssum(lst[-1], "type")
+                    print("計算分類總和")
+            case "delete":
+                lst = self.msg.split(' ')
+                if len(lst) == 1:
+                    self.delete()  # 沒有參數，刪除最後一筆
+                elif len(lst) == 2:
+                    try:
+                        index = int(lst[1])
+                        self.delete(index)
+                    except ValueError:
+                        self.api.reply_message(self.tk, TextSendMessage(text="索引必須是數字\n格式：delete 或 delete 索引"))
+                else:
+                    self.api.reply_message(self.tk, TextSendMessage(text="格式錯誤\n格式：delete 或 delete 索引"))
+                print("清除項目")
+            case "clear":
+                self.clear()
+                print("清除資料")
+            case "revert":
+                self.revert()
+                print("還原備份資料")
+            case "update":
+                lst = self.msg.split(' ', 2)
+                if len(lst) < 3:
+                    self.api.reply_message(self.tk, TextSendMessage(text="格式錯誤\n格式：update 索引 時間 名字 品項 分類 金額\n例如：update 2 2024-01-01 12:00 小美 午餐 餐飲 100"))
+                else:
+                    try:
+                        idx = int(lst[1])
+                        data_str = lst[2]
+                        self.update(idx, data_str)
+                    except ValueError:
+                        self.api.reply_message(self.tk, TextSendMessage(text="索引必須是數字"))
+                print("更新資料")
+            case "指令":
+                self.method()
+                print("查詢指令")
+            case _:
+                self.api.reply_message(self.tk, TextSendMessage(text="不支援的指令"))
 
 
 if __name__ == "__main__":
