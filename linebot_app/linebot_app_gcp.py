@@ -8,7 +8,7 @@ from flask import Flask, request
 from linebot import LineBotApi, WebhookHandler
 from linebot.models import TextSendMessage
 
-from linebot_app.config_new import Config
+from linebot_app.config import Config
 
 app = Flask(__name__)
 @app.route("/", methods=["POST"])
