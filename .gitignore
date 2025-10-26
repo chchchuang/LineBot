@@ -3,3 +3,14 @@ _old/
 .venv/
 linebot/config.py
 *.json
+__pycache__/
+
+# Testing
+.pytest_cache/
+.tox/
+*.egg-info/
+dist/
+build/
+_test_guide/
+.coverage
+coverage.xml
