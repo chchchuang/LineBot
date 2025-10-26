@@ -28,7 +28,7 @@ jobs:
     - name: Run tests with pytest
       run: |
         uv sync
-        uv run pytest tests
+        uv run python -m pytest tests
     
     - name: Upload coverage as artifact
       uses: actions/upload-artifact@v4
