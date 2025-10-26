@@ -30,10 +30,8 @@ jobs:
         uv sync
         uv run pytest tests
     
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v4
+    - name: Upload coverage as artifact
+      uses: actions/upload-artifact@v4
       with:
-        file: ./coverage.xml
-        flags: unittests
-        name: codecov-umbrella
-        fail_ci_if_error: false
+        name: coverage-report
+        path: ./coverage.xml
