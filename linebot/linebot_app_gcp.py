@@ -110,6 +110,18 @@ def linebot(request):
                 case "revert":
                     bo.revert()
                     print("還原備份資料")
+                case "update":
+                    lst = msg.split(' ', 2)
+                    if len(lst) < 3:
+                        line_bot_api.reply_message(tk, TextSendMessage(text="格式錯誤\n格式：update 索引 時間 名字 品項 分類 金額\n例如：update 2 2024-01-01 12:00 小美 午餐 餐飲 100"))
+                    else:
+                        try:
+                            idx = int(lst[1])
+                            data_str = lst[2]
+                            bo.update(idx, data_str)
+                        except ValueError:
+                            line_bot_api.reply_message(tk, TextSendMessage(text="索引必須是數字"))
+                    print("更新資料")
                 case "指令":
                     bo.method()
                     print("查詢指令")
@@ -320,6 +332,98 @@ class BotOperation:
         
         self.api.reply_message(self.tk, TextSendMessage(text=content))
 
+    def update(self, index, data_str):
+        """更新指定索引的資料行"""
+        all_values = self._get_all_values()
+        
+        if len(all_values) <= 1:
+            content = "表單為空，無法更新"
+            self.api.reply_message(self.tk, TextSendMessage(text=content))
+            return
+        
+        try:
+            idx = int(index)
+            
+            if idx < 0 or idx >= len(all_values):
+                content = f"索引錯誤，請輸入 0 到 {len(all_values)-1} 之間的數字"
+                self.api.reply_message(self.tk, TextSendMessage(text=content))
+                return
+            
+            # 不允許更新標題列（index 0）
+            if idx == 0:
+                content = "無法更新標題列"
+                self.api.reply_message(self.tk, TextSendMessage(text=content))
+                return
+            
+            # 解析新數據
+            parts = data_str.split()
+            if len(parts) < 4:
+                content = "數據格式錯誤\n格式：時間 名字 品項 分類 金額\n例如：2024-01-01 12:00:00 小美 午餐 餐飲 100"
+                self.api.reply_message(self.tk, TextSendMessage(text=content))
+                return
+            
+            # 時間 + 人名 + 品項 + 分類 + 金額
+            # 時間可能包含空格，需要特別處理
+            if len(parts) == 6:
+                # 標準格式：日期 時間 人名 品項 分類 金額
+                new_time = f"{parts[0]} {parts[1]}"
+                new_name = parts[2]
+                new_item = parts[3]
+                new_type = parts[4]
+                new_amount = parts[5]
+            elif len(parts) == 5:
+                # 簡化格式：時間 人名 品項 分類 金額
+                new_time = parts[0]
+                new_name = parts[1]
+                new_item = parts[2]
+                new_type = parts[3]
+                new_amount = parts[4]
+            else:
+                content = "數據格式錯誤\n格式：時間 名字 品項 分類 金額"
+                self.api.reply_message(self.tk, TextSendMessage(text=content))
+                return
+            
+            # 驗證金額
+            try:
+                float(new_amount)
+            except ValueError:
+                content = f"金額格式錯誤: {new_amount}"
+                self.api.reply_message(self.tk, TextSendMessage(text=content))
+                return
+            
+            # 獲取舊數據的金額（用於更新總和）
+            old_amount = 0
+            try:
+                if len(all_values[idx]) > self.COL_AMOUNT:
+                    old_amount = float(all_values[idx][self.COL_AMOUNT])
+            except (ValueError, IndexError):
+                old_amount = 0
+            
+            # 構建新數據
+            new_row = [new_time, new_name, new_item, new_type, new_amount]
+            row_number = idx + 1  # pygsheets 使用 1-based
+            
+            # 更新該行的數據
+            self.wks.update_values(f"A{row_number}", [new_row])
+            
+            # 更新總和
+            new_amount_float = float(new_amount)
+            if old_amount != 0 or new_amount_float != 0:
+                try:
+                    current_total = float(self.wks.cell("G1").value or 0)
+                    # 減去舊金額，加上新金額
+                    new_total = current_total - old_amount + new_amount_float
+                    self.wks.update_value("G1", new_total)
+                except (ValueError, IndexError):
+                    pass
+            
+            content = f"已更新第 #{idx} 筆\n{' '.join(new_row)}"
+            self.api.reply_message(self.tk, TextSendMessage(text=content))
+            
+        except ValueError:
+            content = "索引必須是數字"
+            self.api.reply_message(self.tk, TextSendMessage(text=content))
+
     def clear(self):
         # 獲取當前試算表的所有工作表
         spreadsheet = self.wks.spreadsheet
@@ -391,6 +495,8 @@ class BotOperation:
             "sum 名字(記得空格): 加總\n"
             "delete: 刪除最後一筆記錄\n"
             "delete 索引: 刪除指定索引的記錄\n"
+            "update 索引 時間 名字 品項 分類 金額: 更新指定記錄\n"
+            "例如：update 2 2024-01-01 12:00 小美 午餐 餐飲 100\n"
             "clear: 清除全部項目（會自動備份）\n"
             "revert: 還原備份的資料\n"
             "type: 獲得分類項目\n"
