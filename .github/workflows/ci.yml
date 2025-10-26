@@ -25,6 +25,17 @@ jobs:
       with:
         version: "latest"
     
+    - name: Debug file structure and python path
+      run: |
+        echo "--- Current Directory (pwd) ---"
+        pwd
+        echo "--- File Listing (ls -laR) ---"
+        ls -laR
+        echo "--- Python Path (sys.path) before test ---"
+        uv sync # Ensure env is ready
+        uv run python -c "import sys; print(sys.path)"
+      shell: bash
+    
     - name: Run tests with pytest
       run: |
         uv sync
